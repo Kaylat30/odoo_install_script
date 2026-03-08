@@ -251,7 +251,6 @@ admin_passwd = \$pbkdf2-sha512\$25000\$itGak9K6t1aKsTZGSAlBqA\$M1W4wXMcIC/gz7DwX
 db_host = localhost
 db_port = 5432
 http_port = ${OE_PORT}
-http_interface = 127.0.0.1
 db_user = ${OE_USER}
 db_password = ${OE_USER}
 addons_path = ${OE_HOME_EXT}/addons,${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/community-addons,${OE_HOME_EXT}/community-addons/accountant_community,${OE_HOME_EXT}/community-addons/payroll_community,${OE_HOME_EXT}/community-addons/studio_community
@@ -264,7 +263,6 @@ limit_memory_soft = 2147483648
 limit_request = 8192
 limit_time_cpu = 600
 limit_time_real = 1200
-proxy_mode = True 
 EOF"
 
 sudo chown $OE_USER:$OE_USER /etc/${OE_CONFIG}.conf
