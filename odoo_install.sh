@@ -47,7 +47,10 @@ ADMIN_EMAIL="kayondoabdulatif@gmail.com"
 
 # Helper: pip install with optional --break-system-packages (Ubuntu 24.04 / PEP 668)
 pip_install() {
-  if pip3 help install 2>/dev/null | grep -q -- '--break-system-packages'; then
+  # If venv exists, use venv's pip
+  if [ -f "$OE_HOME_EXT/venv/bin/pip3" ]; then
+    sudo -H "$OE_HOME_EXT/venv/bin/pip3" install "$@"
+  elif pip3 help install 2>/dev/null | grep -q -- '--break-system-packages'; then
     sudo -H pip3 install --break-system-packages "$@"
   else
     sudo -H pip3 install "$@"
@@ -142,10 +145,17 @@ sudo su - postgres -c "psql -c \"ALTER USER $OE_USER WITH PASSWORD '$OE_USER';\"
 # Install Dependencies
 #--------------------------------------------------
 echo -e "\n--- Installing Python 3 + pip3 --"
-sudo apt-get install -y python3 python3-pip
-sudo apt-get install git python3-cffi build-essential wget python3-dev python3-venv python3-wheel libxslt-dev libzip-dev libldap2-dev libsasl2-dev python3-setuptools node-less libpng-dev libjpeg-dev gdebi -y
+sudo apt-get install -y python3 python3-pip python3-venv
+
+echo -e "\n---- Create virtual environment ----"
+sudo mkdir -p $OE_HOME_EXT
+sudo chown $USER:$USER $OE_HOME_EXT
+python3 -m venv $OE_HOME_EXT/venv
+sudo chown -R $OE_USER:$OE_USER $OE_HOME_EXT/venv
 
 echo -e "\n---- Install python packages/requirements ----"
+pip_install --upgrade pip
+pip_install --upgrade setuptools wheel
 pip_install -r https://github.com/odoo/odoo/raw/${OE_VERSION}/requirements.txt
 
 # Extra: ensure phonenumbers is installed
@@ -246,7 +256,7 @@ db_user = ${OE_USER}
 db_password = ${OE_USER}
 addons_path = ${OE_HOME_EXT}/addons,${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/community-addons,${OE_HOME_EXT}/community-addons/accountant_community,${OE_HOME_EXT}/community-addons/payroll_community,${OE_HOME_EXT}/community-addons/studio_community
 default_productivity_apps = True
-logfile = /var/log/${OE_USER}/${OE_CONFIG}.log
+;logfile = /var/log/${OE_USER}/${OE_CONFIG}.log
 workers = 5
 max_cron_threads = 2
 limit_memory_hard = 2684354560
@@ -254,6 +264,7 @@ limit_memory_soft = 2147483648
 limit_request = 8192
 limit_time_cpu = 600
 limit_time_real = 1200
+proxy_mode = True 
 EOF"
 
 sudo chown $OE_USER:$OE_USER /etc/${OE_CONFIG}.conf
@@ -265,83 +276,35 @@ sudo su root -c "echo 'sudo -u $OE_USER $OE_HOME_EXT/odoo-bin --config=/etc/${OE
 sudo chmod 755 $OE_HOME_EXT/start.sh
 
 #--------------------------------------------------
-# Adding ODOO as a deamon (initscript)
+# Adding ODOO as a systemd service
 #--------------------------------------------------
 
-echo -e "* Create init file"
-cat <<EOF > ~/$OE_CONFIG
-#!/bin/sh
-### BEGIN INIT INFO
-# Provides: $OE_CONFIG
-# Required-Start: \$remote_fs \$syslog
-# Required-Stop: \$remote_fs \$syslog
-# Should-Start: \$network
-# Should-Stop: \$network
-# Default-Start: 2 3 4 5
-# Default-Stop: 0 1 6
-# Short-Description: Enterprise Business Applications
-# Description: ODOO Business Applications
-### END INIT INFO
-PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
-DAEMON=$OE_HOME_EXT/odoo-bin
-NAME=$OE_CONFIG
-DESC=$OE_CONFIG
-# Specify the user name (Default: odoo).
-USER=$OE_USER
-# Specify an alternate config file (Default: /etc/openerp-server.conf).
-CONFIGFILE="/etc/${OE_CONFIG}.conf"
-# pidfile
-PIDFILE=/var/run/\${NAME}.pid
-# Additional options that are passed to the Daemon.
-DAEMON_OPTS="-c \$CONFIGFILE"
-[ -x \$DAEMON ] || exit 0
-[ -f \$CONFIGFILE ] || exit 0
-checkpid() {
-[ -f \$PIDFILE ] || return 1
-pid=\`cat \$PIDFILE\`
-[ -d /proc/\$pid ] && return 0
-return 1
-}
-case "\${1}" in
-start)
-echo -n "Starting \${DESC}: "
-start-stop-daemon --start --quiet --pidfile \$PIDFILE \
---chuid \$USER --background --make-pidfile \
---exec \$DAEMON -- \$DAEMON_OPTS
-echo "\${NAME}."
-;;
-stop)
-echo -n "Stopping \${DESC}: "
-start-stop-daemon --stop --quiet --pidfile \$PIDFILE \
---oknodo
-echo "\${NAME}."
-;;
-restart|force-reload)
-echo -n "Restarting \${DESC}: "
-start-stop-daemon --stop --quiet --pidfile \$PIDFILE \
---oknodo
-sleep 1
-start-stop-daemon --start --quiet --pidfile \$PIDFILE \
---chuid \$USER --background --make-pidfile \
---exec \$DAEMON -- \$DAEMON_OPTS
-echo "\${NAME}."
-;;
-*)
-N=/etc/init.d/\$NAME
-echo "Usage: \$NAME {start|stop|restart|force-reload}" >&2
-exit 1
-;;
-esac
-exit 0
-EOF
+echo -e "* Create systemd service file"
+sudo bash -c "cat <<EOF > /etc/systemd/system/${OE_CONFIG}.service
+[Unit]
+Description=${OE_CONFIG}
+Requires=postgresql.service
+After=network.target postgresql.service
 
-echo -e "* Security Init File"
-sudo mv ~/$OE_CONFIG /etc/init.d/$OE_CONFIG
-sudo chmod 755 /etc/init.d/$OE_CONFIG
-sudo chown root: /etc/init.d/$OE_CONFIG
+[Service]
+Type=simple
+SyslogIdentifier=${OE_CONFIG}
+PermissionsStartOnly=true
+User=${OE_USER}
+Group=${OE_USER}
+ExecStart=${OE_HOME_EXT}/venv/bin/python3 ${OE_HOME_EXT}/odoo-bin -c /etc/${OE_CONFIG}.conf
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+
+echo -e "* Security Systemd File"
+sudo chmod 644 /etc/systemd/system/${OE_CONFIG}.service
 
 echo -e "* Start ODOO on Startup"
-sudo update-rc.d $OE_CONFIG defaults
+sudo systemctl daemon-reload
+sudo systemctl enable ${OE_CONFIG}
 
 #--------------------------------------------------
 # Install Nginx if needed
@@ -459,7 +422,7 @@ else
 fi
 
 echo -e "* Starting Odoo Service"
-sudo su root -c "/etc/init.d/$OE_CONFIG start"
+sudo systemctl start $OE_CONFIG
 echo "-----------------------------------------------------------"
 echo "Done! The Odoo server is up and running. Specifications:"
 echo "Port: $OE_PORT"
@@ -470,9 +433,9 @@ echo "User PostgreSQL: $OE_USER"
 echo "Code location: $OE_HOME_EXT"
 echo "Addons folders: ${OE_HOME_EXT}/addons, ${OE_HOME_EXT}/community-addons, ${OE_HOME_EXT}/custom-addons"
 echo "Password superadmin (database): $OE_SUPERADMIN"
-echo "Start Odoo service: sudo service $OE_CONFIG start"
-echo "Stop Odoo service: sudo service $OE_CONFIG stop"
-echo "Restart Odoo service: sudo service $OE_CONFIG restart"
+echo "Start Odoo service: sudo systemctl start $OE_CONFIG"
+echo "Stop Odoo service: sudo systemctl stop $OE_CONFIG"
+echo "Restart Odoo service: sudo systemctl restart $OE_CONFIG"
 if [ $INSTALL_NGINX = "True" ]; then
   echo "Nginx configuration file: /etc/nginx/sites-available/$WEBSITE_NAME"
 fi
