@@ -247,7 +247,7 @@ echo -e "* Creating server config file"
 sudo bash -c "cat <<EOF > /etc/${OE_CONFIG}.conf
 [options]
 ; This is the password that allows database operations:
-admin_passwd = \$pbkdf2-sha512\$25000\$itGak9K6t1aKsTZGSAlBqA\$M1W4wXMcIC/gz7DwXjaYkJ6TO2AwWWQEDcrmEXR78NPtSKdm/fq5gbtzz4S0IAyl2pjBB6I4fvdblOTCM4CvsA
+admin_passwd = admin_passwd
 db_host = localhost
 db_port = 5432
 http_port = ${OE_PORT}
