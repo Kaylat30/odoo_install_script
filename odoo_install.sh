@@ -221,7 +221,7 @@ echo -e "\n---- Create custom module directory ----"
 sudo su $OE_USER -c "mkdir -p $OE_HOME_EXT/custom-addons"
 
 echo -e "\n---- Download community addons ----"
-sudo git clone --depth 1 --branch main https://github.com/Kaylat30/community_addons $OE_HOME_EXT/community-addons/
+sudo git clone --depth 1 --branch main https://github.com/Kaylat30/community-addons $OE_HOME_EXT/community-addons/
 
 echo -e "\n---- Setting permissions on home folder ----"
 sudo chown -R $OE_USER:$OE_USER $OE_HOME/*
