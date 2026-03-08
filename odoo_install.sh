@@ -14,14 +14,14 @@
 # ./odoo-install
 ################################################################################
 
-OE_USER="odoo"
+OE_USER="odoo19"
 OE_HOME="/$OE_USER"
-OE_HOME_EXT="/$OE_USER/${OE_USER}-server"
+OE_HOME_EXT="/opt/$OE_USER"
 # The default port where this Odoo instance will run under (provided you use the command -c in the terminal)
 # Set to true if you want to install it, false if you don't need it or have it already installed.
 INSTALL_WKHTMLTOPDF="True"
 # Set the default Odoo port (you still have to use -c /etc/odoo-server.conf for example to use this.)
-OE_PORT="8069"
+OE_PORT="8019"
 # Choose the Odoo version which you want to install. For example: 16.0, 15.0, 14.0 or saas-22. When using 'master' the master version will be installed.
 # IMPORTANT! This script contains extra libraries that are specifically needed for Odoo 17.0
 OE_VERSION="19.0"
@@ -35,7 +35,7 @@ INSTALL_NGINX="False"
 OE_SUPERADMIN="admin"
 # Set to "True" to generate a random password, "False" to use the variable in OE_SUPERADMIN
 GENERATE_RANDOM_PASSWORD="True"
-OE_CONFIG="${OE_USER}-server"
+OE_CONFIG="${OE_USER}"
 # Set the website name
 WEBSITE_NAME="_"
 # Set the default Odoo longpolling port (you still have to use -c /etc/odoo-server.conf for example to use this.)
@@ -136,6 +136,7 @@ fi
 
 echo -e "\n---- Creating the ODOO PostgreSQL User  ----"
 sudo su - postgres -c "createuser -s $OE_USER" 2> /dev/null || true
+sudo su - postgres -c "psql -c \"ALTER USER $OE_USER WITH PASSWORD '$OE_USER';\"" 2> /dev/null || true
 
 #--------------------------------------------------
 # Install Dependencies
@@ -196,10 +197,9 @@ sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $
 if [ $IS_ENTERPRISE = "True" ]; then
     # Odoo Enterprise install!
     pip_install psycopg2-binary pdfminer.six
-    sudo su $OE_USER -c "mkdir $OE_HOME/enterprise"
-    sudo su $OE_USER -c "mkdir $OE_HOME/enterprise/addons"
+    sudo su $OE_USER -c "mkdir $OE_HOME_EXT/enterprise"
 
-    GITHUB_RESPONSE=$(sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/enterprise "$OE_HOME/enterprise/addons" 2>&1)
+    GITHUB_RESPONSE=$(sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/enterprise "$OE_HOME_EXT/enterprise" 2>&1)
     while [[ $GITHUB_RESPONSE == *"Authentication"* ]]; do
         echo "------------------------WARNING------------------------------"
         echo "Your authentication with Github has failed! Please try again."
@@ -207,10 +207,10 @@ if [ $IS_ENTERPRISE = "True" ]; then
         echo "TIP: Press ctrl+c to stop this script."
         echo "-------------------------------------------------------------"
         echo " "
-        GITHUB_RESPONSE=$(sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/enterprise "$OE_HOME/enterprise/addons" 2>&1)
+        GITHUB_RESPONSE=$(sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/enterprise "$OE_HOME_EXT/enterprise" 2>&1)
     done
 
-    echo -e "\n---- Added Enterprise code under $OE_HOME/enterprise/addons ----"
+    echo -e "\n---- Added Enterprise code under $OE_HOME_EXT/enterprise ----"
     echo -e "\n---- Installing Enterprise specific libraries ----"
     pip_install num2words ofxparse dbfread ebaysdk firebase_admin pyOpenSSL
     sudo npm install -g less
@@ -218,35 +218,44 @@ if [ $IS_ENTERPRISE = "True" ]; then
 fi
 
 echo -e "\n---- Create custom module directory ----"
-sudo su $OE_USER -c "mkdir $OE_HOME/custom"
-sudo su $OE_USER -c "mkdir $OE_HOME/custom/addons"
+sudo su $OE_USER -c "mkdir -p $OE_HOME_EXT/custom-addons"
+
+echo -e "\n---- Download community addons ----"
+sudo git clone --depth 1 --branch main https://github.com/Kaylat30/community_addons $OE_HOME_EXT/community-addons/
 
 echo -e "\n---- Setting permissions on home folder ----"
 sudo chown -R $OE_USER:$OE_USER $OE_HOME/*
+sudo chown -R $OE_USER:$OE_USER $OE_HOME_EXT/custom-addons
+sudo chown -R $OE_USER:$OE_USER $OE_HOME_EXT/community-addons
 
 echo -e "* Create server config file"
 
 
 sudo touch /etc/${OE_CONFIG}.conf
 echo -e "* Creating server config file"
-sudo su root -c "printf '[options] \n; This is the password that allows database operations:\n' >> /etc/${OE_CONFIG}.conf"
-if [ $GENERATE_RANDOM_PASSWORD = "True" ]; then
-    echo -e "* Generating random admin password"
-    OE_SUPERADMIN=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
-fi
-sudo su root -c "printf 'admin_passwd = ${OE_SUPERADMIN}\n' >> /etc/${OE_CONFIG}.conf"
-if [ $OE_VERSION > "11.0" ];then
-    sudo su root -c "printf 'http_port = ${OE_PORT}\n' >> /etc/${OE_CONFIG}.conf"
-else
-    sudo su root -c "printf 'xmlrpc_port = ${OE_PORT}\n' >> /etc/${OE_CONFIG}.conf"
-fi
-sudo su root -c "printf 'logfile = /var/log/${OE_USER}/${OE_CONFIG}.log\n' >> /etc/${OE_CONFIG}.conf"
 
-if [ $IS_ENTERPRISE = "True" ]; then
-    sudo su root -c "printf 'addons_path=${OE_HOME}/enterprise/addons,${OE_HOME_EXT}/addons\n' >> /etc/${OE_CONFIG}.conf"
-else
-    sudo su root -c "printf 'addons_path=${OE_HOME_EXT}/addons,${OE_HOME}/custom/addons\n' >> /etc/${OE_CONFIG}.conf"
-fi
+sudo bash -c "cat <<EOF > /etc/${OE_CONFIG}.conf
+[options]
+; This is the password that allows database operations:
+admin_passwd = \$pbkdf2-sha512\$25000\$itGak9K6t1aKsTZGSAlBqA\$M1W4wXMcIC/gz7DwXjaYkJ6TO2AwWWQEDcrmEXR78NPtSKdm/fq5gbtzz4S0IAyl2pjBB6I4fvdblOTCM4CvsA
+db_host = localhost
+db_port = 5432
+http_port = ${OE_PORT}
+http_interface = 127.0.0.1
+db_user = ${OE_USER}
+db_password = ${OE_USER}
+addons_path = ${OE_HOME_EXT}/addons,${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/community-addons,${OE_HOME_EXT}/community-addons/accountant_community,${OE_HOME_EXT}/community-addons/payroll_community,${OE_HOME_EXT}/community-addons/studio_community
+default_productivity_apps = True
+logfile = /var/log/${OE_USER}/${OE_CONFIG}.log
+workers = 5
+max_cron_threads = 2
+limit_memory_hard = 2684354560
+limit_memory_soft = 2147483648
+limit_request = 8192
+limit_time_cpu = 600
+limit_time_real = 1200
+EOF"
+
 sudo chown $OE_USER:$OE_USER /etc/${OE_CONFIG}.conf
 sudo chmod 640 /etc/${OE_CONFIG}.conf
 
@@ -459,7 +468,7 @@ echo "Configuraton file location: /etc/${OE_CONFIG}.conf"
 echo "Logfile location: /var/log/$OE_USER"
 echo "User PostgreSQL: $OE_USER"
 echo "Code location: $OE_USER"
-echo "Addons folder: $OE_USER/$OE_CONFIG/addons/"
+echo "Addons folders: ${OE_HOME_EXT}/addons, ${OE_HOME_EXT}/community-addons, ${OE_HOME_EXT}/custom-addons"
 echo "Password superadmin (database): $OE_SUPERADMIN"
 echo "Start Odoo service: sudo service $OE_CONFIG start"
 echo "Stop Odoo service: sudo service $OE_CONFIG stop"
