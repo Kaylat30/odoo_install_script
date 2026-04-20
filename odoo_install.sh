@@ -34,7 +34,7 @@ INSTALL_NGINX="True"
 # Set the superadmin password - if GENERATE_RANDOM_PASSWORD is set to "True" we will automatically generate a random password, otherwise we use this one
 OE_SUPERADMIN="admin"
 # Set to "True" to generate a random password, "False" to use the variable in OE_SUPERADMIN
-GENERATE_RANDOM_PASSWORD="True"
+GENERATE_RANDOM_PASSWORD="False"
 OE_CONFIG="${OE_USER}"
 # Set the website name
 WEBSITE_NAME="_"
@@ -233,10 +233,14 @@ sudo su $OE_USER -c "mkdir -p $OE_HOME_EXT/custom-addons"
 echo -e "\n---- Download community addons ----"
 sudo git clone --depth 1 --branch main https://github.com/Kaylat30/community-addons $OE_HOME_EXT/community-addons/
 
+# echo -e "\n---- Download enterprise addons ----"
+# sudo git clone --depth 1 --branch main https://github.com/Kaylat30/enterprise-addons $OE_HOME_EXT/enterprise-addons/
+
 echo -e "\n---- Setting permissions on home folder ----"
 sudo chown -R $OE_USER:$OE_USER $OE_HOME/*
 sudo chown -R $OE_USER:$OE_USER $OE_HOME_EXT/custom-addons
 sudo chown -R $OE_USER:$OE_USER $OE_HOME_EXT/community-addons
+# sudo chown -R $OE_USER:$OE_USER $OE_HOME_EXT/enterprise-addons
 
 echo -e "* Create server config file"
 
@@ -254,6 +258,7 @@ http_port = ${OE_PORT}
 db_user = ${OE_USER}
 db_password = ${OE_USER}
 addons_path = ${OE_HOME_EXT}/addons,${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/community-addons,${OE_HOME_EXT}/community-addons/accountant_community,${OE_HOME_EXT}/community-addons/payroll_community,${OE_HOME_EXT}/community-addons/studio_community
+;,${OE_HOME_EXT}/enterprise-addons
 default_productivity_apps = True
 ;logfile = /var/log/${OE_USER}/${OE_CONFIG}.log
 workers = 5
@@ -263,6 +268,10 @@ limit_memory_soft = 2147483648
 limit_request = 8192
 limit_time_cpu = 600
 limit_time_real = 1200
+;proxy_mode = True
+;dbfilter = ^%d$
+;dbfilter = ^%h$
+;list_db = False
 EOF"
 
 sudo chown $OE_USER:$OE_USER /etc/${OE_CONFIG}.conf
@@ -429,7 +438,7 @@ echo "Configuraton file location: /etc/${OE_CONFIG}.conf"
 echo "Logfile location: /var/log/$OE_USER"
 echo "User PostgreSQL: $OE_USER"
 echo "Code location: $OE_HOME_EXT"
-echo "Addons folders: ${OE_HOME_EXT}/addons, ${OE_HOME_EXT}/community-addons, ${OE_HOME_EXT}/custom-addons"
+echo "Addons folders: ${OE_HOME_EXT}/addons, ${OE_HOME_EXT}/community-addons, ${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/enterprise-addons"
 echo "Password superadmin (database): $OE_SUPERADMIN"
 echo "Start Odoo service: sudo systemctl start $OE_CONFIG"
 echo "Stop Odoo service: sudo systemctl stop $OE_CONFIG"
