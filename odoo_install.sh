@@ -257,7 +257,7 @@ db_port = 5432
 http_port = ${OE_PORT}
 db_user = ${OE_USER}
 db_password = ${OE_USER}
-addons_path = ${OE_HOME_EXT}/addons,${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/community-addons,${OE_HOME_EXT}/community-addons/accountant_community,${OE_HOME_EXT}/community-addons/payroll_community,${OE_HOME_EXT}/community-addons/studio_community
+addons_path = ${OE_HOME_EXT}/addons,${OE_HOME_EXT}/custom-addons,${OE_HOME_EXT}/community-addons,${OE_HOME_EXT}/community-addons/accountant_community,${OE_HOME_EXT}/community-addons/payroll_community,${OE_HOME_EXT}/community-addons/studio_community,,${OE_HOME_EXT}/community-addons/ai_community
 ;,${OE_HOME_EXT}/enterprise-addons
 default_productivity_apps = True
 ;logfile = /var/log/${OE_USER}/${OE_CONFIG}.log
